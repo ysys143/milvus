@@ -62,6 +62,18 @@ extension. Override per request through the analyzer `parameters`:
 - `stop_pos` → blacklist of POS tags to drop (replaces the default set)
 - `lowercase` → `["true"]` / `["false"]`
 
+## Troubleshooting
+
+- **`Failed initializing MeCab ... no such file or directory: /usr/local/etc/mecabrc`**
+  — the `mecab-python3` wheel bundles its own libmecab and looks for a `mecabrc`
+  even when you pass `-d`. Create one (the Docker image's dict path shown here):
+  ```bash
+  mkdir -p /usr/local/etc
+  echo "dicdir = /usr/lib/x86_64-linux-gnu/mecab/dic/mecab-ko-dic" > /usr/local/etc/mecabrc
+  ```
+  or set `MECABRC=/etc/mecabrc`. (The Debian mecab-ko-dic build installs the dict
+  under `/usr/lib/x86_64-linux-gnu/mecab/dic/mecab-ko-dic`, not `/usr/local/...`.)
+
 ## Production notes
 
 Tokenization happens on **every** document at index time and **every** query, so

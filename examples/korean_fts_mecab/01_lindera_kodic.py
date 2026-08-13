@@ -21,12 +21,24 @@ from pymilvus import DataType, Function, FunctionType, MilvusClient
 
 COLLECTION = "kfts_lindera_kodic"
 
-# ko-dic POS tags to drop: particles (조사, J*) and endings (어미, E*). These are
-# mecab-ko-dic tagset codes, matched against each morpheme's part of speech.
-KOREAN_STOP_TAGS = [
-    "JKS", "JKC", "JKG", "JKO", "JKB", "JKV", "JKQ", "JX", "JC",
-    "EP", "EF", "EC", "ETN", "ETM",
-    "SF", "SE", "SSO", "SSC", "SC", "SY",
+# Keep only content POS (mecab-ko-dic tagset): nouns, verbs, adjectives, adverbs,
+# determiners, foreign words, numbers, roots. Everything else -- particles (조사),
+# endings (어미), whitespace, symbols -- is dropped. This yields the same
+# content-word reduction the textsearch_ko PostgreSQL extension performs
+# (무궁화꽃이 피었습니다 -> 무궁화 / 꽃 / 피).
+#
+# NOTE: a keep-list (korean_keep_tags) is used rather than a stop-list. Empirically,
+# against this lindera ko-dic build, korean_stop_tags matched content tags (e.g.
+# "NNG") but NOT the particle/ending codes one would guess from the raw
+# mecab-ko-dic tagset (e.g. "JKS"/"EP"), so a blacklist silently let particles
+# through. Whitelisting content POS is both robust and the usual choice for BM25.
+# (There is also a `korean_stop_tags` filter for the inverse policy.)
+KOREAN_KEEP_TAGS = [
+    "NNG", "NNP", "NNB", "NR", "NP",   # nouns / numerals / pronouns
+    "VV", "VA", "VX",                    # verbs / adjectives / auxiliary predicates
+    "MAG", "MAJ", "MM",                  # adverbs / determiners
+    "SL", "SH", "SN",                    # foreign words / Hanja / numbers
+    "XR",                                # roots
 ]
 
 analyzer_params = {
@@ -36,7 +48,7 @@ analyzer_params = {
         "mode": "normal",  # "decompose" splits compounds more aggressively
         # POS filter runs *inside* the lindera tokenizer (not the top-level filter)
         "filter": [
-            {"kind": "korean_stop_tags", "tags": KOREAN_STOP_TAGS},
+            {"kind": "korean_keep_tags", "tags": KOREAN_KEEP_TAGS},
         ],
     },
     # top-level analyzer filters (system filters): lowercase Latin tokens
