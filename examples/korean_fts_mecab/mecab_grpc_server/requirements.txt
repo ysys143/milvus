@@ -1,0 +1,5 @@
+grpcio>=1.60
+grpcio-tools>=1.60
+# libmecab must be installed at the OS level (see Dockerfile). mecab-python3 binds to it.
+# For Korean, install mecab-ko + mecab-ko-dic and point --mecab-args at the dict.
+mecab-python3>=1.0.6

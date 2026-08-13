@@ -1,0 +1,51 @@
+// Milvus external gRPC tokenizer contract.
+//
+// This mirrors the `tokenizer.proto` that Milvus itself compiles (the canonical
+// source lives in the milvus-proto repo, generated into
+// `go-api/v3/tokenizerpb` on the Go side and into
+// `src/analyzer/gen/milvus.proto.tokenizer.rs` on the Rust/tantivy side). The
+// service path Milvus calls is `/milvus.proto.tokenizer.Tokenizer/Tokenize`, so
+// the package name and message shapes below must match exactly.
+//
+// Regenerate the Python stubs after editing:  ./generate_stubs.sh
+
+syntax = "proto3";
+
+package milvus.proto.tokenizer;
+
+option go_package = "github.com/milvus-io/milvus-proto/go-api/v3/tokenizerpb";
+
+service Tokenizer {
+  rpc Tokenize(TokenizationRequest) returns (TokenizationResponse);
+}
+
+message TokenizationRequest {
+  // The text to tokenize (one document field value, or one query string).
+  string text = 1;
+
+  // Arbitrary key/values forwarded from the analyzer config's "parameters"
+  // array. This server understands:
+  //   - key "stop_pos":  values are mecab-ko-dic POS tags to DROP (overrides default)
+  //   - key "keep_pos":  values are POS tags to KEEP (everything else dropped)
+  //   - key "lowercase": values ["true"] / ["false"]
+  repeated Parameter parameters = 2;
+
+  message Parameter {
+    string key = 1;
+    repeated string values = 2;
+  }
+}
+
+message TokenizationResponse {
+  repeated Token tokens = 1;
+}
+
+message Token {
+  string text = 1;
+  // BYTE offsets into the UTF-8 encoding of the original text; offset_to exclusive.
+  int32 offset_from = 2;
+  int32 offset_to = 3;
+  // Contiguous position among emitted tokens (used by phrase / slop matching).
+  int32 position = 4;
+  int32 position_length = 5;
+}
