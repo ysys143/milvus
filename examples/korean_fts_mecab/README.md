@@ -97,6 +97,35 @@ The tricky part — recovering **byte offsets** from MeCab surface forms — is
 implemented and unit-tested in `mecab_grpc_server/mecab_analyze.py`. See that
 directory's README for the contract, Docker build, and production notes.
 
+## Performance characteristics
+
+Measured end-to-end on the standalone Milvus 3.0.0 above (single node, warm,
+localhost RPC, 4,000 short Korean docs, retrieval-only). **Treat these as relative
+trade-offs, not production SLAs** — absolute numbers move with corpus size, document
+length, network, and hardware.
+
+| | lindera ko-dic (in-process) | grpc MeCab (external) |
+|---|---|---|
+| Index throughput (incl. BM25 tokenize) | ~2.4× higher | baseline; bounded by the tokenizer server |
+| Search latency (p50) | single-digit ms | single-digit ms (≈1–2 ms more) |
+| Per-call tokenize cost | none over in-process | one RPC round-trip per doc **and** per query |
+| One-time cost | loads ko-dic into memory per analyzer instance (cold start), then reused | heavy dict lives in the server, already warm |
+
+Takeaways:
+
+- **Search latency is effectively a tie** — Milvus caches the analyzer per
+  collection/field, so queries do not re-load the dictionary.
+- **Indexing favors lindera** — it tokenizes in-process; grpc pays an RPC per
+  document and is capped by the tokenizer server's throughput.
+- **The gRPC server is the scaling variable.** A single Python process is limited by
+  the GIL and a non-thread-safe `MeCab.Tagger` (it does not scale on *threads*).
+  For heavy ingest, scale it out with **processes**, not threads: run N single-worker
+  replicas behind the endpoint (or a process-per-core supervisor), co-located with
+  the querynode to keep RPC latency low. Cache by text hash for repeated queries.
+- **Don't microbenchmark with `run_analyzer`.** It rebuilds the analyzer every call,
+  so it charges lindera the full ko-dic load (~tens of ms) on each invocation — a
+  cost that disappears at real index/query time. Use ingest + search timing instead.
+
 ## Choosing
 
 - **Just want strong Korean BM25 with minimal ops** → Approach 1. Same dictionary,
